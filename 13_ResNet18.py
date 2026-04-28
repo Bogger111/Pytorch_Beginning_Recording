@@ -27,8 +27,34 @@ train_loader = DataLoader(train_data,batch_size=128,shuffle=True)
 test_loader = DataLoader(test_data,batch_size=128,shuffle=False)
 
 configs = {
-    'drop,sche':{'dropout':True,'scheduler':True,'lr':0.001,'epoch':100}
+    'baseline': {
+        'dropout': False,
+        'scheduler': False,
+        'lr': 0.001,
+        'epoch': 50
+    },
+
+    'dropout_only': {
+        'dropout': True,
+        'scheduler': False,
+        'lr': 0.001,
+        'epoch': 50
+    },
+
+    'scheduler_only': {
+        'dropout': False,
+        'scheduler': True,
+        'lr': 0.001,
+        'epoch': 50
+    },
+
+    'dropout_scheduler': {
+        'dropout': True,
+        'scheduler': True,
+        'lr': 0.001,
+        'epoch': 50
     }
+}
 models = {}
 results = {}
 
@@ -210,10 +236,10 @@ def model_running(configs):
 
             if test_acc > best_acc:
                 best_acc = test_acc
-                torch.save({
-                    'model':model.state_dict(),
-                    'acc':best_acc,
-                },'mini_resnet_cifar10.pth')
+            torch.save({
+                'model': model.state_dict(),
+                'acc': best_acc,
+            }, f'{name}_mini_resnet_cifar10.pth')
 
             print(f"Epoch:{times+1}, Loss:{avr_loss:.4f}, Train accuracy:{train_acc:.4f}, Test accuracy:{test_acc:.4f}, Best accuracy:{best_acc:.4f}.")
             
@@ -254,7 +280,64 @@ def plot_loss(results,configs):
         plt.grid()
         plt.show()
 
+def plot_compare_acc(results):
+    plt.figure(figsize=(12, 6))
+
+    for name in results:
+        epochs = range(1, len(results[name][2]) + 1)
+        plt.plot(epochs, results[name][2], label=name)
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Test Accuracy")
+    plt.title("Comparison of Test Accuracy")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+
+def plot_confusion_matrix(name, model, test_loader):
+    checkpoint = torch.load(f'{name}_mini_resnet_cifar10.pth', map_location=device)
+    model.load_state_dict(checkpoint['model'])
+
+    model.eval()
+
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for x, y in test_loader:
+            x = x.to(device)
+            y = y.to(device)
+
+            outputs = model(x)
+            preds = outputs.argmax(dim=1)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(y.cpu().numpy())
+
+    cm = confusion_matrix(all_labels, all_preds)
+
+    classes = ['airplane','automobile','bird','cat','deer',
+               'dog','frog','horse','ship','truck']
+
+    plt.figure(figsize=(8,6))
+    sns.heatmap(cm, annot=True, fmt='d',
+                xticklabels=classes,
+                yticklabels=classes,
+                cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title(f'Confusion Matrix - {name}')
+    plt.show()
+
 results = model_running(configs)
 
+plot_compare_acc(results)
 plot_acc(results,configs)
 plot_loss(results,configs)
+
+for name, model in models.items():
+    print(f"Confusion Matrix for {name}")
+    plot_confusion_matrix(name,model, test_loader)
