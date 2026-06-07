@@ -4,6 +4,10 @@ import torch.optim as optim
 from torchvision import transforms,datasets
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+import os
+
+check_point_dir = 'D:\Python_D\Pytorch-learning\path'
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"device:{device}")
@@ -236,10 +240,11 @@ def model_running(configs):
 
             if test_acc > best_acc:
                 best_acc = test_acc
-            torch.save({
-                'model': model.state_dict(),
-                'acc': best_acc,
-            }, f'{name}_mini_resnet_cifar10.pth')
+                save_path = os.path.join(check_point_dir,f"{name}_mini_resnet_cifar10.pth")
+                torch.save({
+                    'model': model.state_dict(),
+                    'acc': best_acc,
+                }, save_path)
 
             print(f"Epoch:{times+1}, Loss:{avr_loss:.4f}, Train accuracy:{train_acc:.4f}, Test accuracy:{test_acc:.4f}, Best accuracy:{best_acc:.4f}.")
             

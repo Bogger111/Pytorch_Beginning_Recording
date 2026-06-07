@@ -2,3 +2,6 @@ data/
 *.pth
 *.pt
 __pycache__/
+dogs_vs_cats/
+image/
+.vscode/
