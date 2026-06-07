@@ -1,22 +1,138 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.optim as optim
 
-text = """
-hello world
-hello python
-hello RNN
-deep learning is good
-rnn can be run
-"""
 
-text = text.strip()
+sentences = [
+    "i love this movie",
+    "this film is great",
+    "i like this story",
+    "this movie is wonderful",
 
-chars = sorted(list(set(text)))
+    "i hate this movie",
+    "this film is bad",
+    "i dislike this story",
+    "this movie is terrible",
+]
 
-char_to_idx = {ch:idx for idx,ch in enumerate(chars)}
+labels = [
+    1, 1, 1, 1,
+    0, 0, 0, 0
+]
 
-idx_to_char = {idx:ch for ch,idx in char_to_idx.items()}
+word2idx = {'<pad>':0, '<unk>':1}
+for sentence in sentences:
+    for word in sentence.split():
+        if word not in word2idx:
+            word2idx[word] = len(word2idx)
 
-vocab_size = len(chars)
+max_len = 5
 
+def encode(sentence):
+    ids = []
+
+    for word in sentence.split():
+        ids.append(word2idx.get(word, word2idx["<unk>"]))
+
+    if len(ids) < max_len:
+        ids += [word2idx["<pad>"]] * (max_len - len(ids))
+
+    ids = ids[:max_len]
+
+    return ids
+
+x = torch.tensor([encode(s) for s in sentences])
+y = torch.tensor(labels)
+
+vocab_size = len(word2idx)
+input_size = 16
+hidden_size = 10
+nums_classes = 2
+
+epoches = 100
+class MyRNNCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+
+        self.input_hidden = nn.Linear(input_size, hidden_size)
+        self.hidden_hidden = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x, h_pre):
+        
+        h_t = torch.tanh(self.input_hidden(x) + self.hidden_hidden(h_pre))
+        
+        return h_t
+    
+
+class MyRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, nums_classes, vocab_size):
+        super().__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.nums_classes = nums_classes
+        
+
+        self.cell = MyRNNCell(input_size,hidden_size)
+        self.fc = nn.Linear(hidden_size,nums_classes)
+        self.embedding = nn.Embedding(vocab_size, input_size)
+
+    def forward(self, x):
+        
+        x = self.embedding(x)
+        batch_size, seq_len, input_size = x.shape
+        
+        h = torch.zeros(batch_size, self.hidden_size, device=x.device)
+        
+        for t in range(seq_len):
+            x_t = x[:, t, :]
+            h = self.cell(x_t, h)
+
+        logits = self.fc(h)
+
+        return logits
+
+def predict(sentence):
+    model.eval()
+
+    x_test = torch.tensor([encode(sentence)])
+
+    with torch.no_grad():
+        logits = model(x_test)
+        pred = logits.argmax(dim=1).item()
+
+        if pred == 1:
+            return 'positive'
+        else:
+            return 'negative'
+
+model = MyRNN(input_size, hidden_size, nums_classes, vocab_size)
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+for epoch in range(epoches):
+
+    logits = model(x)
+    loss = criterion(logits, y)
+    
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    pred = logits.argmax(dim=1)
+    acc = (pred == y).float().mean()
+    
+    if epoch == 0:
+        print(f"Epoch{epoch+1}, Loss:{loss.item():.4f}, Acc:{acc.item():.4f}") 
+    
+    if(epoch + 1) % 10 == 0:
+        print(f'Epoch{epoch+1}, Loss:{loss.item():.4f}, Acc:{acc.item():.4f}')
+
+print(predict("i love this story"))
+print(predict("this movie is bad"))
+print(predict("i hate this film"))
+print(predict("this story is damn"))
