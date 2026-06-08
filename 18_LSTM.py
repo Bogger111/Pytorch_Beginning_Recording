@@ -57,25 +57,42 @@ input_size = 16
 hidden_size = 10
 nums_classes = 2
 
-epoches = 10
-class MyRNNCell(nn.Module):
+epoches = 20
+
+class MyLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size):
         super().__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
 
-        self.input_hidden = nn.Linear(input_size, hidden_size)
-        self.hidden_hidden = nn.Linear(hidden_size, hidden_size)
+        self.x_f = nn.Linear(input_size, hidden_size)
+        self.h_f = nn.Linear(hidden_size, hidden_size)
 
-    def forward(self, x, h_pre):
+        self.x_i = nn.Linear(input_size, hidden_size)
+        self.h_i = nn.Linear(hidden_size, hidden_size)
+
+        self.x_g = nn.Linear(input_size, hidden_size)
+        self.h_g = nn.Linear(hidden_size, hidden_size)
+
+        self.x_o = nn.Linear(input_size, hidden_size)
+        self.h_o = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x_t, h_prev, c_prev):
         
-        h_t = torch.tanh(self.input_hidden(x) + self.hidden_hidden(h_pre))
+        f_t = torch.sigmoid(self.x_f(x_t) + self.h_f(h_prev))
+        i_t = torch.sigmoid(self.x_i(x_t) + self.h_i(h_prev))
+        g_t = torch.tanh(self.x_g(x_t) + self.h_g(h_prev))
+        o_t = torch.sigmoid(self.x_o(x_t) + self.h_o(h_prev))
+        
+        c_t = f_t * c_prev + i_t * g_t
+
+        h_t = o_t * torch.tanh(c_t)
         
         return h_t
     
 
-class MyRNN(nn.Module):
+class MyLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, nums_classes, vocab_size):
         super().__init__()
 
@@ -84,7 +101,7 @@ class MyRNN(nn.Module):
         self.nums_classes = nums_classes
         
 
-        self.cell = MyRNNCell(input_size,hidden_size)
+        self.cell = MyLSTMCell(input_size,hidden_size)
         self.fc = nn.Linear(hidden_size,nums_classes)
         self.embedding = nn.Embedding(vocab_size, input_size)
 
@@ -94,10 +111,11 @@ class MyRNN(nn.Module):
         batch_size, seq_len, input_size = x.shape
         
         h = torch.zeros(batch_size, self.hidden_size, device=x.device)
-        
+        c = torch.zeros(batch_size, self.hidden_size, device=x.device)
+
         for t in range(seq_len):
             x_t = x[:, t, :]
-            h = self.cell(x_t, h)
+            h = self.cell(x_t, h, c)
 
         logits = self.fc(h)
 
@@ -117,7 +135,7 @@ def predict(sentence):
         else:
             return 'negative'
 
-model = MyRNN(input_size, hidden_size, nums_classes, vocab_size)
+model = MyLSTM(input_size, hidden_size, nums_classes, vocab_size)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
