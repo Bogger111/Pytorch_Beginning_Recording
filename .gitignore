@@ -5,3 +5,4 @@ __pycache__/
 dogs_vs_cats/
 image/
 .vscode/
+test.py
